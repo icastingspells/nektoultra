@@ -4352,10 +4352,21 @@
         } catch (_) { }
     }
 
+    let _autoClickPending = false;
     function checkAndClickButton() {
         if (!isAutoModeEnabled) return;
+        if (_autoClickPending) return;
         const btn = document.querySelector('.callScreen.callFinished button.callScreen__findBtn') || document.querySelector('button.go-scan-button');
-        if (btn) btn.click();
+        if (!btn) return;
+        _autoClickPending = true;
+        // Random human-like delay 1.2–3.8s to avoid bot detection
+        const delay = 1200 + Math.random() * 2600;
+        setTimeout(() => {
+            _autoClickPending = false;
+            if (!isAutoModeEnabled) return;
+            const b = document.querySelector('.callScreen.callFinished button.callScreen__findBtn') || document.querySelector('button.go-scan-button');
+            if (b) b.click();
+        }, delay);
     }
 
     let metaHintRaf = 0;
