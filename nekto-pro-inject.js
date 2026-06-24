@@ -173,47 +173,40 @@
 
                 try {
                     let brotherDetected = false;
-                    const secretChannel = pc.createDataChannel('nektopro-secret', { negotiated: true, id: 99 });
+                    let myChannel = null;
 
-                    secretChannel.onopen = () => {
-                        try { secretChannel.send('NEKTOPRO_PING'); } catch (e) { console.error('[NektoPRO] Send err:', e); }
-                    };
-
-                    secretChannel.onmessage = (event) => {
-                        if (event.data === 'NEKTOPRO_PING' || event.data === 'NEKTOPRO_PONG') {
+                    const onBrotherMsg = (channel, data) => {
+                        if (data === 'NEKTOPRO_PING' || data === 'NEKTOPRO_PONG') {
                             if (!brotherDetected) {
                                 brotherDetected = true;
                                 if (typeof showNkToast === 'function') {
                                     showNkToast('⚡ Собеседник использует NektoPRO', 'success', 0);
                                 }
                             }
-                            if (event.data === 'NEKTOPRO_PING') {
-                                try { secretChannel.send('NEKTOPRO_PONG'); } catch (e) { }
+                            if (data === 'NEKTOPRO_PING') {
+                                try { channel.send('NEKTOPRO_PONG'); } catch (_) { }
                             }
                         }
                     };
 
+                    // Listen passively — only create our channel after peer opens one first.
+                    // This avoids putting nektopro-secret into SDP (which nekto.me server sees).
                     pc.addEventListener('datachannel', (event) => {
                         const channel = event.channel;
                         if (channel.label === 'nektopro-secret') {
-                            channel.onmessage = (e) => {
-                                if (e.data === 'NEKTOPRO_PING' || e.data === 'NEKTOPRO_PONG') {
-                                    if (!brotherDetected) {
-                                        brotherDetected = true;
-                                        if (typeof showNkToast === 'function') {
-                                            showNkToast('⚡ Собеседник использует NektoPRO', 'success', 0);
-                                        }
-                                    }
-                                    if (e.data === 'NEKTOPRO_PING') {
-                                        try { channel.send('NEKTOPRO_PONG'); } catch (err) { }
-                                    }
+                            channel.onmessage = (e) => onBrotherMsg(channel, e.data);
+                            channel.onopen = () => {
+                                if (!myChannel) {
+                                    try {
+                                        myChannel = pc.createDataChannel('nektopro-secret');
+                                        myChannel.onmessage = (e) => onBrotherMsg(myChannel, e.data);
+                                    } catch (_) { }
                                 }
+                                try { channel.send('NEKTOPRO_PONG'); } catch (_) { }
                             };
                         }
                     });
-                } catch (err) {
-                    console.error('[NektoPRO] Setup error:', err);
-                }
+                } catch (err) { }
 
                 pc.addEventListener('track', (ev) => {
                     if (ev.track && ev.track.kind === 'audio') {
