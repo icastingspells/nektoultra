@@ -1,5 +1,5 @@
-# NektoPRO — nekto.me
-
+# NektoULTRA — nekto.me
+Форк расширения NektoPRO
 Расширение для Chrome/Firefox, которое прокачивает аудиочат на [nekto.me](https://nekto.me).
 
 ## Возможности
