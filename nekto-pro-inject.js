@@ -4549,14 +4549,18 @@
             cancelBtn.click();
             showNkToast('Собеседник пропущен', 'skip', 2500);
 
+            const findDelay = () => 700 + Math.random() * 800;
+
             const swalBtn = document.querySelector('.swal2-confirm.swal2-styled');
             if (swalBtn) {
-                swalBtn.click();
                 setTimeout(() => {
-                    const findBtn = document.querySelector('.callScreen__findBtn')
-                        || document.querySelector('button.go-scan-button');
-                    if (findBtn) findBtn.click();
-                }, 100);
+                    swalBtn.click();
+                    setTimeout(() => {
+                        const findBtn = document.querySelector('.callScreen__findBtn')
+                            || document.querySelector('button.go-scan-button');
+                        if (findBtn) findBtn.click();
+                    }, findDelay());
+                }, 300 + Math.random() * 300);
             } else {
                 let attempt = 0;
                 const timer = setInterval(() => {
@@ -4569,11 +4573,11 @@
                             const findBtn = document.querySelector('.callScreen__findBtn')
                                 || document.querySelector('button.go-scan-button');
                             if (findBtn) findBtn.click();
-                        }, 100);
+                        }, findDelay());
                     } else if (attempt > 30) {
                         clearInterval(timer);
                     }
-                }, 45);
+                }, 150);
             }
             return true;
         }
@@ -4672,7 +4676,8 @@
                 console.log(`[NK voice] триггер "${skipWord}" -> скип собеседника`);
                 triggeredThisUtterance = true;
                 lastTriggerAt = now;
-                skipConversation();
+                // Human reaction delay after hearing the word
+                setTimeout(() => skipConversation(), 400 + Math.random() * 600);
                 return;
             }
 
