@@ -15,6 +15,18 @@
     // Also hide toString itself
     makeNative(Function.prototype.toString, 'toString');
 
+    // Yandex Metrika (mc.yandex.ru/watch) must NOT be blocked —
+    // nekto.me checks yaCounter on search and bans if it's missing.
+    // Only block pure ad/error-tracking scripts that don't affect anti-bot checks.
+    function isBlockedTrackerUrl(url) {
+        if (!url) return false;
+        if (url.includes('google-analytics') || url.includes('googletagmanager')) return true;
+        if (url.includes('bugsnag')) return true;
+        // block yandex ads but NOT metrika counter (mc.yandex.ru)
+        if (url.includes('yandex') && !url.includes('mc.yandex.ru')) return true;
+        return false;
+    }
+
     try {
         const originalCreateElement = document.createElement;
         document.createElement = makeNative(function (tagName) {
@@ -22,7 +34,7 @@
             if (tagName && tagName.toLowerCase() === 'script') {
                 const nativeSetAttribute = el.setAttribute;
                 el.setAttribute = function (name, val) {
-                    if (name === 'src' && val && (val.includes('yandex') || val.includes('google-analytics') || val.includes('bugsnag') || val.includes('metrika'))) {
+                    if (name === 'src' && isBlockedTrackerUrl(val)) {
                         return nativeSetAttribute.call(this, name, 'data:text/javascript,void 0');
                     }
                     return nativeSetAttribute.apply(this, arguments);
@@ -31,11 +43,7 @@
                 let originalSrc = "";
                 Object.defineProperty(el, 'src', {
                     set: function (url) {
-                        if (url && (url.includes('yandex') || url.includes('google-analytics') || url.includes('bugsnag') || url.includes('metrika'))) {
-                            originalSrc = 'data:text/javascript,void 0';
-                        } else {
-                            originalSrc = url;
-                        }
+                        originalSrc = isBlockedTrackerUrl(url) ? 'data:text/javascript,void 0' : url;
                         nativeSetAttribute.call(this, 'src', originalSrc);
                     },
                     get: function () {
