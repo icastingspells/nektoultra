@@ -784,7 +784,7 @@
         body.className = 'nk-toast-body';
         const brand = document.createElement('div');
         brand.className = 'nk-toast-brand';
-        brand.textContent = 'NektoPRO';
+        brand.textContent = 'NektoULTRA';
         const textEl = document.createElement('div');
         textEl.className = 'nk-toast-text';
         textEl.textContent = String(text);
@@ -3244,8 +3244,8 @@
             <div id="nekto-inner">
                 <div id="nekto-header">
                     <div>
-                        <div class="nekto-logo">NEKTOPRO</div>
-                        <div class="nekto-version">v 1.3.5 · by Maiyi</div>
+                        <div class="nekto-logo">NEKTOULTRA</div>
+                        <div class="nekto-version">v 1.3.6</div>
                     </div>
                     <div class="nekto-header-actions">
                         <a href="https://t.me/malyiiiiii" target="_blank" rel="noopener noreferrer" class="nekto-contact-btn" id="nekto-contact-btn" aria-label="Связь с автором в Telegram" title="Связь, баги, идеи.">✉</a>
@@ -4220,7 +4220,7 @@
         try {
             if (!navigator.mediaSession) return;
             navigator.mediaSession.metadata = new MediaMetadata({
-                title: 'NektoPRO',
+                title: 'NektoULTRA',
                 artist: isConversationActive ? '\u0420\u0430\u0437\u0433\u043e\u0432\u043e\u0440 ' + pipFormatTimer() : '\u041e\u0436\u0438\u0434\u0430\u043d\u0438\u0435'
             });
             navigator.mediaSession.setActionHandler('nexttrack', () => {
@@ -4248,7 +4248,7 @@
         try {
             if (!navigator.mediaSession || !pipActive) return;
             navigator.mediaSession.metadata = new MediaMetadata({
-                title: 'NektoPRO',
+                title: 'NektoULTRA',
                 artist: isConversationActive ? '\u0420\u0430\u0437\u0433\u043e\u0432\u043e\u0440 ' + pipFormatTimer() : '\u041e\u0436\u0438\u0434\u0430\u043d\u0438\u0435'
             });
         } catch (_) { }
@@ -4952,7 +4952,7 @@ registerProcessor('vosk-capture', VoskCapture);`;
         startPingLoop();
         startSiteMetaWatcher();
         applySiteTheme(settings.panelTheme);
-        showNkToast('NektoPRO загружен', 'success', 3000);
+        showNkToast('NektoULTRA загружен', 'success', 3000);
         showChangelogIfNeeded();
     });
 })();
