@@ -184,42 +184,6 @@
 
                 if (rtcStatsInterval) clearInterval(rtcStatsInterval);
 
-                try {
-                    let brotherDetected = false;
-                    let myChannel = null;
-
-                    const onBrotherMsg = (channel, data) => {
-                        if (data === 'NEKTOPRO_PING' || data === 'NEKTOPRO_PONG') {
-                            if (!brotherDetected) {
-                                brotherDetected = true;
-                                if (typeof showNkToast === 'function') {
-                                    showNkToast('⚡ Собеседник использует NektoPRO', 'success', 0);
-                                }
-                            }
-                            if (data === 'NEKTOPRO_PING') {
-                                try { channel.send('NEKTOPRO_PONG'); } catch (_) { }
-                            }
-                        }
-                    };
-
-                    // Listen passively — only create our channel after peer opens one first.
-                    // This avoids putting nektopro-secret into SDP (which nekto.me server sees).
-                    pc.addEventListener('datachannel', (event) => {
-                        const channel = event.channel;
-                        if (channel.label === 'nektopro-secret') {
-                            channel.onmessage = (e) => onBrotherMsg(channel, e.data);
-                            channel.onopen = () => {
-                                if (!myChannel) {
-                                    try {
-                                        myChannel = pc.createDataChannel('nektopro-secret');
-                                        myChannel.onmessage = (e) => onBrotherMsg(myChannel, e.data);
-                                    } catch (_) { }
-                                }
-                                try { channel.send('NEKTOPRO_PONG'); } catch (_) { }
-                            };
-                        }
-                    });
-                } catch (err) { }
 
                 pc.addEventListener('track', (ev) => {
                     if (ev.track && ev.track.kind === 'audio') {
