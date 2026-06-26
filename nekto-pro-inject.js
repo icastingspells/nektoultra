@@ -2,9 +2,22 @@
 (function () {
     'use strict';
 
+    // Make overridden native functions undetectable via .toString() checks
+    const _nativeToStr = Function.prototype.toString;
+    function makeNative(fn, name) {
+        const tag = name || fn.name || 'anonymous';
+        Object.defineProperty(fn, 'toString', {
+            value: () => `function ${tag}() { [native code] }`,
+            writable: true, configurable: true
+        });
+        return fn;
+    }
+    // Also hide toString itself
+    makeNative(Function.prototype.toString, 'toString');
+
     try {
         const originalCreateElement = document.createElement;
-        document.createElement = function (tagName) {
+        document.createElement = makeNative(function (tagName) {
             const el = originalCreateElement.apply(this, arguments);
             if (tagName && tagName.toLowerCase() === 'script') {
                 const nativeSetAttribute = el.setAttribute;
@@ -33,7 +46,7 @@
                 });
             }
             return el;
-        };
+        }, 'createElement');
     } catch (e) {
     }
 
@@ -251,6 +264,7 @@
                 return pc;
             };
             HookedPeerConn.prototype = OrigPeerConn.prototype;
+            makeNative(HookedPeerConn, 'RTCPeerConnection');
             Object.defineProperty(window, 'RTCPeerConnection', { value: HookedPeerConn, writable: true });
             if (window.webkitRTCPeerConnection) {
                 Object.defineProperty(window, 'webkitRTCPeerConnection', { value: HookedPeerConn, writable: true });
@@ -265,7 +279,7 @@
         let _onlineEl = null, _waitingEl = null;
         let _lastOnline = null, _lastWaiting = null;
         const origParse = JSON.parse;
-        JSON.parse = function (text, reviver) {
+        JSON.parse = makeNative(function (text, reviver) {
             const data = origParse(text, reviver);
             if (data && typeof data === 'object') {
                 let msgType = data.type || (Array.isArray(data) ? data[0] : null);
@@ -297,7 +311,7 @@
                 }
             }
             return data;
-        };
+        }, 'parse');
     } catch (e) { }
 
     const PAGE_MSG = 'nekto-pro';
