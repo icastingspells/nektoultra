@@ -23,15 +23,6 @@
         }
     }
 
-    function isAllowedProxyUrl(urlStr) {
-        try {
-            const u = new URL(urlStr);
-            return u.protocol === 'https:' && (u.hostname === 'uwupad.me' || u.hostname === 'www.uwupad.me' || u.hostname === 'cdn.uwupad.me');
-        } catch (_) {
-            return false;
-        }
-    }
-
     function isAllowedNektoHtmlUrl(urlStr) {
         try {
             const u = new URL(urlStr);
@@ -45,18 +36,6 @@
         }
     }
 
-    function postJsonErr(id, err) {
-        window.postMessage({ source: EXT_SRC, type: 'FETCH_JSON_ERR', id, err: String(err) }, '*');
-    }
-    function postJsonOk(id, data) {
-        window.postMessage({ source: EXT_SRC, type: 'FETCH_JSON_OK', id, data }, '*');
-    }
-    function postBinErr(id, err) {
-        window.postMessage({ source: EXT_SRC, type: 'FETCH_BIN_ERR', id, err: String(err) }, '*');
-    }
-    function postBinOk(id, b64) {
-        window.postMessage({ source: EXT_SRC, type: 'FETCH_BIN_OK', id, b64 }, '*');
-    }
     function postHtmlErr(id, err) {
         window.postMessage({ source: EXT_SRC, type: 'FETCH_NEKTO_HTML_ERR', id, err: String(err) }, '*');
     }
@@ -94,34 +73,6 @@
         }
     }
 
-    async function fetchJsonReliable(url, id) {
-        let lastErr = 'fetch';
-        for (let i = 0; i < 4; i++) {
-            const res = await sendBg('json', url);
-            if (res.ok && res.data !== undefined) {
-                postJsonOk(id, res.data);
-                return;
-            }
-            lastErr = res.err || 'fail';
-            await delay(180 + i * 220);
-        }
-        postJsonErr(id, lastErr);
-    }
-
-    async function fetchBinReliable(url, id) {
-        let lastErr = 'fetch';
-        for (let i = 0; i < 4; i++) {
-            const res = await sendBg('bin', url);
-            if (res.ok && typeof res.b64 === 'string') {
-                postBinOk(id, res.b64);
-                return;
-            }
-            lastErr = res.err || 'fail';
-            await delay(180 + i * 220);
-        }
-        postBinErr(id, lastErr);
-    }
-
     async function fetchNektoHtmlReliable(url, id) {
         let lastErr = 'fetch';
         for (let i = 0; i < 3; i++) {
@@ -141,26 +92,6 @@
         const d = ev.data;
         if (!d || d.source !== PAGE_SRC) return;
 
-        if (d.type === 'FETCH_BIN') {
-            const { id, url } = d;
-            if (!isAllowedProxyUrl(url)) {
-                postBinErr(id, 'blocked url');
-                return;
-            }
-            void fetchBinReliable(url, id);
-            return;
-        }
-
-        if (d.type === 'FETCH_JSON') {
-            const { id, url } = d;
-            if (!isAllowedProxyUrl(url)) {
-                postJsonErr(id, 'blocked url');
-                return;
-            }
-            void fetchJsonReliable(url, id);
-            return;
-        }
-
         if (d.type === 'FETCH_NEKTO_HTML') {
             const { id, url } = d;
             if (!isAllowedNektoHtmlUrl(url)) {
@@ -170,36 +101,6 @@
             void fetchNektoHtmlReliable(url, id);
             return;
         }
-
-        if (d.type === 'CHECK_PERMISSIONS') {
-            const { id } = d;
-            sendBg('checkPermissions', '')
-                .then((res) => {
-                    window.postMessage({ source: EXT_SRC, type: 'CHECK_PERMISSIONS_OK', id, granted: res.ok ? res.granted : false }, '*');
-                })
-                .catch(() => {
-                    window.postMessage({ source: EXT_SRC, type: 'CHECK_PERMISSIONS_OK', id, granted: false }, '*');
-                });
-            return;
-        }
-
-        if (d.type === 'REQUEST_PERMISSIONS') {
-            const { id } = d;
-            sendBg('requestPermissions', '')
-                .then((res) => {
-                    if (res.ok) {
-                        window.postMessage({ source: EXT_SRC, type: 'REQUEST_PERMISSIONS_OK', id, granted: res.granted }, '*');
-                    } else {
-                        window.postMessage({ source: EXT_SRC, type: 'REQUEST_PERMISSIONS_ERR', id, err: res.err || 'fail' }, '*');
-                    }
-                })
-                .catch((err) => {
-                    window.postMessage({ source: EXT_SRC, type: 'REQUEST_PERMISSIONS_ERR', id, err: String(err) }, '*');
-                });
-            return;
-        }
-
-
     });
 
     

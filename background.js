@@ -1,19 +1,9 @@
 'use strict';
 
 const UWU_NS = 'nekto-pro-uwu';
-const ALLOWED = new Set(['uwupad.me', 'www.uwupad.me', 'cdn.uwupad.me']);
 const NEKTO_HOSTS = new Set(['nekto.me', 'www.nekto.me']);
 
 const runtime = globalThis.browser?.runtime || globalThis.chrome?.runtime;
-
-function allowedUrl(urlStr) {
-    try {
-        const u = new URL(urlStr);
-        return u.protocol === 'https:' && ALLOWED.has(u.hostname);
-    } catch (_) {
-        return false;
-    }
-}
 
 function allowedNektoHtmlUrl(urlStr) {
     try {
@@ -27,56 +17,8 @@ function allowedNektoHtmlUrl(urlStr) {
     }
 }
 
-function abToB64(buf) {
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.byteLength; i += chunk) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.byteLength)));
-    }
-    return btoa(binary);
-}
-
-const UWU_REFERER = { Referer: 'https://uwupad.me/' };
-
-function jsonHeaders() {
-    return {
-        Accept: 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        Origin: 'https://uwupad.me',
-        ...UWU_REFERER
-    };
-}
-
-function binHeaders() {
-    return {
-        Accept: 'audio/mpeg, audio/*, application/octet-stream, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        Origin: 'https://uwupad.me',
-        ...UWU_REFERER
-    };
-}
-
 function delay(ms) {
     return new Promise((r) => setTimeout(r, ms));
-}
-
-async function fetchJsonOnce(url) {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 22000);
-    try {
-        const r = await fetch(url, {
-            credentials: 'omit',
-            cache: 'no-store',
-            headers: jsonHeaders(),
-            signal: ctrl.signal
-        });
-        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-        const text = await r.text();
-        return JSON.parse(text);
-    } finally {
-        clearTimeout(tid);
-    }
 }
 
 async function fetchNektoHtmlOnce(url) {
@@ -103,45 +45,14 @@ async function fetchNektoHtmlOnce(url) {
     }
 }
 
-async function fetchBinOnce(url) {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 25000);
-    try {
-        const r = await fetch(url, {
-            credentials: 'omit',
-            cache: 'no-store',
-            headers: binHeaders(),
-            signal: ctrl.signal
-        });
-        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-        const buf = await r.arrayBuffer();
-        return abToB64(buf);
-    } finally {
-        clearTimeout(tid);
-    }
-}
-
-async function doJsonWithRetry(url) {
+async function doNektoHtmlWithRetry(url) {
     let last = 'fetch';
     for (let i = 0; i < 3; i++) {
         try {
-            return await fetchJsonOnce(url);
+            return await fetchNektoHtmlOnce(url);
         } catch (e) {
             last = String(e.message || e);
-            await delay(200 + i * 300);
-        }
-    }
-    throw new Error(last);
-}
-
-async function doBinWithRetry(url) {
-    let last = 'fetch';
-    for (let i = 0; i < 3; i++) {
-        try {
-            return await fetchBinOnce(url);
-        } catch (e) {
-            last = String(e.message || e);
-            await delay(200 + i * 300);
+            await delay(200 + i * 400);
         }
     }
     throw new Error(last);
@@ -158,66 +69,15 @@ if (runtime?.onMessage) {
             return true;
         };
 
-        function callPermission(method, details, fallback) {
-            const pm = globalThis.browser?.permissions || globalThis.chrome?.permissions;
-            if (!pm?.[method]) return Promise.resolve(fallback);
-            try {
-                const res = pm[method](details);
-                if (res && typeof res.then === 'function') return res;
-                return new Promise((resolve) => {
-                    pm[method](details, (granted) => {
-                        const err = globalThis.chrome?.runtime?.lastError;
-                        resolve(err ? fallback : Boolean(granted));
-                    });
-                });
-            } catch (_) {
-                return Promise.resolve(fallback);
-            }
-        }
-
-        if (msg.kind === 'json') {
-            const url = msg.url;
-            if (!allowedUrl(url)) {
-                sendResponse({ ok: false, err: 'blocked url' });
-                return false;
-            }
-            return respond(doJsonWithRetry(url)
-                .then((data) => ({ ok: true, data }))
-                .catch((e) => ({ ok: false, err: String(e.message || e) })));
-        }
-
-        if (msg.kind === 'bin') {
-            const url = msg.url;
-            if (!allowedUrl(url)) {
-                sendResponse({ ok: false, err: 'blocked url' });
-                return false;
-            }
-            return respond(doBinWithRetry(url)
-                .then((b64) => ({ ok: true, b64 }))
-                .catch((e) => ({ ok: false, err: String(e.message || e) })));
-        }
-
         if (msg.kind === 'nektoHtml') {
             const url = msg.url;
             if (!allowedNektoHtmlUrl(url)) {
                 sendResponse({ ok: false, err: 'blocked url' });
                 return false;
             }
-            return respond(fetchNektoHtmlOnce(url)
+            return respond(doNektoHtmlWithRetry(url)
                 .then((text) => ({ ok: true, text }))
                 .catch((e) => ({ ok: false, err: String(e.message || e) })));
-        }
-
-        if (msg.kind === 'checkPermissions') {
-            return respond(callPermission('contains', {
-                origins: ['https://uwupad.me/*', 'https://cdn.uwupad.me/*']
-            }, true).then((granted) => ({ ok: true, granted })));
-        }
-
-        if (msg.kind === 'requestPermissions') {
-            return respond(callPermission('request', {
-                origins: ['https://uwupad.me/*', 'https://cdn.uwupad.me/*']
-            }, true).then((granted) => ({ ok: true, granted })));
         }
 
         return false;

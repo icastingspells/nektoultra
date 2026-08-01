@@ -2,63 +2,6 @@
 (function () {
     'use strict';
 
-    // Make overridden native functions undetectable via .toString() checks
-    const _nativeToStr = Function.prototype.toString;
-    function makeNative(fn, name) {
-        const tag = name || fn.name || 'anonymous';
-        Object.defineProperty(fn, 'toString', {
-            value: () => `function ${tag}() { [native code] }`,
-            writable: true, configurable: true
-        });
-        return fn;
-    }
-    // Also hide toString itself
-    makeNative(Function.prototype.toString, 'toString');
-
-    // Yandex Metrika (mc.yandex.ru/watch) must NOT be blocked —
-    // nekto.me checks yaCounter on search and bans if it's missing.
-    // Only block pure ad/error-tracking scripts that don't affect anti-bot checks.
-    function isBlockedTrackerUrl(url) {
-        if (!url) return false;
-        if (url.includes('google-analytics') || url.includes('googletagmanager')) return true;
-        if (url.includes('bugsnag')) return true;
-        // block yandex ads but NOT metrika counter (mc.yandex.ru)
-        if (url.includes('yandex') && !url.includes('mc.yandex.ru')) return true;
-        return false;
-    }
-
-    try {
-        const originalCreateElement = document.createElement;
-        document.createElement = makeNative(function (tagName) {
-            const el = originalCreateElement.apply(this, arguments);
-            if (tagName && tagName.toLowerCase() === 'script') {
-                const nativeSetAttribute = el.setAttribute;
-                el.setAttribute = function (name, val) {
-                    if (name === 'src' && isBlockedTrackerUrl(val)) {
-                        return nativeSetAttribute.call(this, name, 'data:text/javascript,void 0');
-                    }
-                    return nativeSetAttribute.apply(this, arguments);
-                };
-
-                let originalSrc = "";
-                Object.defineProperty(el, 'src', {
-                    set: function (url) {
-                        originalSrc = isBlockedTrackerUrl(url) ? 'data:text/javascript,void 0' : url;
-                        nativeSetAttribute.call(this, 'src', originalSrc);
-                    },
-                    get: function () {
-                        return originalSrc;
-                    },
-                    configurable: true,
-                    enumerable: true
-                });
-            }
-            return el;
-        }, 'createElement');
-    } catch (e) {
-    }
-
-
     const START_SOUND = 'https://zvukogram.com/mp3/22/skype-sound-message-received-message-received.mp3';
     const END_SOUND = 'https://www.myinstants.com/media/sounds/teleport1_Cw1ot9l.mp3';
 
@@ -173,63 +116,20 @@
     }
 
     try {
-        const OrigPeerConn = window.RTCPeerConnection || window.webkitRTCPeerConnection;
-        if (OrigPeerConn) {
-            const HookedPeerConn = function (...args) {
-                const pc = new OrigPeerConn(...args);
-                activePeerConnection = pc;
-
-                if (rtcStatsInterval) clearInterval(rtcStatsInterval);
-
-
-                pc.addEventListener('track', (ev) => {
-                    if (ev.track && ev.track.kind === 'audio') {
-                        nkRemoteStream = ev.streams && ev.streams[0] ? ev.streams[0] : new MediaStream([ev.track]);
-                        // If recording is already running, plug in the remote channel live
+        // Capture remote audio stream without replacing the global RTCPeerConnection constructor
+        const _srcObjDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject');
+        if (_srcObjDesc && _srcObjDesc.set) {
+            Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', {
+                get() { return _srcObjDesc.get.call(this); },
+                set(stream) {
+                    _srcObjDesc.set.call(this, stream);
+                    if (stream && typeof stream.getAudioTracks === 'function' && stream.getAudioTracks().length > 0) {
+                        nkRemoteStream = stream;
                         if (nkRecordState !== 'idle') nkConnectRemoteToRecording(nkRemoteStream);
                     }
-                });
-
-                rtcStatsInterval = setInterval(() => {
-                    if (pc.signalingState === 'closed') {
-                        clearInterval(rtcStatsInterval);
-                        updateP2pUI(null, null);
-                        return;
-                    }
-                    pc.getStats(null).then(stats => {
-                        let rtt = null;
-                        let packetsLost = 0;
-                        let packetsReceived = 0;
-
-                        stats.forEach(report => {
-                            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                                if (report.currentRoundTripTime !== undefined) {
-                                    rtt = (report.currentRoundTripTime * 1000).toFixed(0);
-                                }
-                            }
-                            if (report.type === 'inbound-rtp' && report.kind === 'audio') {
-                                packetsLost = report.packetsLost || 0;
-                                packetsReceived = report.packetsReceived || 0;
-                            }
-                        });
-
-                        let lossPercent = null;
-                        if (packetsReceived > 0 || packetsLost > 0) {
-                            lossPercent = ((packetsLost / (packetsReceived + packetsLost)) * 100).toFixed(1);
-                        }
-
-                        updateP2pUI(rtt, lossPercent);
-                    });
-                }, 1000);
-
-                return pc;
-            };
-            HookedPeerConn.prototype = OrigPeerConn.prototype;
-            makeNative(HookedPeerConn, 'RTCPeerConnection');
-            Object.defineProperty(window, 'RTCPeerConnection', { value: HookedPeerConn, writable: true });
-            if (window.webkitRTCPeerConnection) {
-                Object.defineProperty(window, 'webkitRTCPeerConnection', { value: HookedPeerConn, writable: true });
-            }
+                },
+                configurable: true
+            });
         }
     } catch (e) { }
 
@@ -240,7 +140,7 @@
         let _onlineEl = null, _waitingEl = null;
         let _lastOnline = null, _lastWaiting = null;
         const origParse = JSON.parse;
-        JSON.parse = makeNative(function (text, reviver) {
+        JSON.parse = function (text, reviver) {
             const data = origParse(text, reviver);
             if (data && typeof data === 'object') {
                 let msgType = data.type || (Array.isArray(data) ? data[0] : null);
@@ -272,29 +172,13 @@
                 }
             }
             return data;
-        }, 'parse');
+        };
     } catch (e) { }
 
     const PAGE_MSG = 'nekto-pro';
     const EXT_MSG = 'nekto-pro-ext';
-    let fetchBinSeq = 0;
-    const fetchBinWait = new Map();
-    let fetchJsonSeq = 0;
-    const fetchJsonWait = new Map();
     let fetchHtmlSeq = 0;
     const fetchHtmlWait = new Map();
-    let checkPermSeq = 0;
-    const checkPermWait = new Map();
-    let reqPermSeq = 0;
-    const reqPermWait = new Map();
-
-    function b64ToArrayBuffer(b64) {
-        const bin = atob(b64);
-        const len = bin.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-        return bytes.buffer;
-    }
 
     window.addEventListener('message', (ev) => {
         if (!ev.data || ev.data.source !== EXT_MSG) return;
@@ -306,30 +190,7 @@
 
             }
         }
-        const { type, id, b64, data, err } = ev.data;
-        if (type === 'FETCH_BIN_OK') {
-            const p = fetchBinWait.get(id);
-            if (p) {
-                fetchBinWait.delete(id);
-                try { p.resolve(b64ToArrayBuffer(b64)); } catch (e) { p.reject(e); }
-            }
-            return;
-        }
-        if (type === 'FETCH_BIN_ERR') {
-            const p = fetchBinWait.get(id);
-            if (p) { fetchBinWait.delete(id); p.reject(new Error(err || 'fetch')); }
-            return;
-        }
-        if (type === 'FETCH_JSON_OK') {
-            const p = fetchJsonWait.get(id);
-            if (p) { fetchJsonWait.delete(id); p.resolve(data); }
-            return;
-        }
-        if (type === 'FETCH_JSON_ERR') {
-            const p = fetchJsonWait.get(id);
-            if (p) { fetchJsonWait.delete(id); p.reject(new Error(err || 'fetch')); }
-            return;
-        }
+        const { type, id, err } = ev.data;
         if (type === 'FETCH_NEKTO_HTML_OK') {
             const p = fetchHtmlWait.get(id);
             if (p) {
@@ -344,49 +205,7 @@
             if (p) { fetchHtmlWait.delete(id); p.reject(new Error(err || 'fetch')); }
             return;
         }
-        if (type === 'CHECK_PERMISSIONS_OK') {
-            const p = checkPermWait.get(id);
-            if (p) { checkPermWait.delete(id); p(ev.data.granted); }
-            return;
-        }
-        if (type === 'REQUEST_PERMISSIONS_OK') {
-            const p = reqPermWait.get(id);
-            if (p) { reqPermWait.delete(id); p(ev.data.granted); }
-            return;
-        }
-        if (type === 'REQUEST_PERMISSIONS_ERR') {
-            const p = reqPermWait.get(id);
-            if (p) { reqPermWait.delete(id); p(false); }
-        }
     });
-
-    function extFetchBinary(url) {
-        return new Promise((resolve, reject) => {
-            const id = ++fetchBinSeq;
-            fetchBinWait.set(id, { resolve, reject });
-            window.postMessage({ source: PAGE_MSG, type: 'FETCH_BIN', id, url }, '*');
-            setTimeout(() => {
-                if (fetchBinWait.has(id)) {
-                    fetchBinWait.delete(id);
-                    reject(new Error('bridge-timeout'));
-                }
-            }, 90000);
-        });
-    }
-
-    function extFetchJson(url) {
-        return new Promise((resolve, reject) => {
-            const id = ++fetchJsonSeq;
-            fetchJsonWait.set(id, { resolve, reject });
-            window.postMessage({ source: PAGE_MSG, type: 'FETCH_JSON', id, url }, '*');
-            setTimeout(() => {
-                if (fetchJsonWait.has(id)) {
-                    fetchJsonWait.delete(id);
-                    reject(new Error('bridge-timeout'));
-                }
-            }, 8000);
-        });
-    }
 
     function extFetchNektoHtml(url) {
         return new Promise((resolve, reject) => {
@@ -399,34 +218,6 @@
                     reject(new Error('bridge-timeout'));
                 }
             }, 45000);
-        });
-    }
-
-    function extCheckPermissions() {
-        return new Promise((resolve) => {
-            const id = ++checkPermSeq;
-            checkPermWait.set(id, resolve);
-            window.postMessage({ source: PAGE_MSG, type: 'CHECK_PERMISSIONS', id }, '*');
-            setTimeout(() => {
-                if (checkPermWait.has(id)) {
-                    checkPermWait.delete(id);
-                    resolve(true);
-                }
-            }, 1000);
-        });
-    }
-
-    function extRequestPermissions() {
-        return new Promise((resolve) => {
-            const id = ++reqPermSeq;
-            reqPermWait.set(id, resolve);
-            window.postMessage({ source: PAGE_MSG, type: 'REQUEST_PERMISSIONS', id }, '*');
-            setTimeout(() => {
-                if (reqPermWait.has(id)) {
-                    reqPermWait.delete(id);
-                    resolve(false);
-                }
-            }, 30000);
         });
     }
 

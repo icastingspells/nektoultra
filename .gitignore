@@ -1,0 +1,15 @@
+# Build output
+.build/
+*.zip
+*.xpi
+
+# Chrome/IDE junk
+_metadata/
+check_braces.log
+
+# Node
+node_modules/
+
+# OS
+Thumbs.db
+.DS_Store
